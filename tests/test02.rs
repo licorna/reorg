@@ -35,7 +35,7 @@ fn test_entry_simple() {
 some content
 and some more";
 
-    match reorg::read_entry(test_entry) {
+    match reorg::read_section(test_entry) {
         Some(e) => {
             assert_eq!(e.heading.title, "valid title");
             assert_eq!(e.heading.stars, 4);
@@ -49,7 +49,7 @@ fn test_entry_simple0() {
     let test_entry = "*** some title
 this is some content
 and a bit more";
-    match reorg::read_entry(test_entry) {
+    match reorg::read_section(test_entry) {
         Some(e) => {
             assert_eq!(e.heading.stars, 3);
             assert_eq!(e.heading.title, "some title");
@@ -69,10 +69,10 @@ and some more
 with its own content";
     match reorg::read_document(test_doc) {
         Some(d) => {
-            assert_eq!(d.entries[0].heading.title, "some entry");
-            assert_eq!(d.entries[0].heading.stars, 3);
-            assert_eq!(d.entries[1].heading.title, "and another section");
-            assert_eq!(d.entries[1].heading.stars, 2);
+            assert_eq!(d.sections[0].heading.title, "some entry");
+            assert_eq!(d.sections[0].heading.stars, 3);
+            assert_eq!(d.sections[1].heading.title, "and another section");
+            assert_eq!(d.sections[1].heading.stars, 2);
         },
         None => {
             assert_eq!(true, false);
