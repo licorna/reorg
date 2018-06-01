@@ -27,6 +27,9 @@
 
 extern crate regex;
 use regex::RegexBuilder;
+use std::fs::File;
+use std::io::prelude::*;
+
 
 /// `Document` is a org representation of a text file. It is a collection of
 /// entries but it can be preceded by some content. The prologue is not yet
@@ -55,6 +58,20 @@ pub struct Heading {
     pub stars: usize,
     pub keyword: String,
     pub title: String,
+}
+
+/// Reads an org document from a file.
+pub fn from_file(filename: &str) -> Option<Document> {
+    let mut f = File::open(&filename).expect("file not found");
+
+    let mut doc_text = String::new();
+
+    match f.read_to_string(&mut doc_text) {
+        Err(_) => panic!("Error reading file contents"),
+        Ok(_) => (),
+    }
+
+    read_document(&doc_text)
 }
 
 /// Reads an org document in a string.
