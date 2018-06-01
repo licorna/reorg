@@ -42,15 +42,26 @@ pub struct Heading {
     // pub priority: String,
 }
 
-pub fn read_heading0(_: &str) -> Option<Heading> {
-    Some(Heading {
-        stars: 1,
-        title: "valid title".to_string(),
-        keyword: "".to_string(),
+fn read_content(section: &str) -> &str {
+    match section.find('\n') {
+        Some(u) => &section[u+1..],
+        None => &""
+    }
+}
+
+/// Returns full entry, this is, a title and a section.
+pub fn read_entry(section: &str) -> Option<Entry> {
+    let heading = read_heading(section);
+    let content = read_content(section);
+
+    Some(Entry{
+        heading: heading.unwrap(),
+        content: content.to_string(),
+        children: vec![],
     })
 }
 
-// returns number of stars from beginning of 1st line.
+/// Returns number of stars from beginning of 1st line.
 fn read_stars(heading: &str) -> usize {
     let mut stars:usize = 0;
     for c in heading.to_string().chars() {
@@ -64,12 +75,14 @@ fn read_stars(heading: &str) -> usize {
     stars
 }
 
-// reads a title: everything after stars and 1st whitespace. input is considered
-// sane for now.
+/// Reads a title: everything after stars and 1st whitespace. input is considered
+/// sane for now.
 fn read_title(heading: &str) -> &str {
     let start = heading.find("* ").unwrap();
-
-    return &heading[start+2..]
+    match heading.find('\n') {
+        Some(u) => &heading[start+2..u],
+        None => &heading[start+2..]
+    }
 }
 
 pub fn read_heading(heading: &str) -> Option<Heading> {

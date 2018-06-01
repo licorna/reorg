@@ -28,3 +28,54 @@ fn test_heading_2_star() {
         }
     }
 }
+
+#[test]
+fn test_entry_simple() {
+    let test_entry = "**** valid title
+some content
+and some more";
+
+    match reorg::read_entry(test_entry) {
+        Some(e) => {
+            assert_eq!(e.heading.title, "valid title");
+            assert_eq!(e.heading.stars, 4);
+        },
+        None => assert_eq!(true, false)
+    }
+}
+
+#[test]
+fn test_entry_simple0() {
+    let test_entry = "*** some title
+this is some content
+and a bit more";
+    match reorg::read_entry(test_entry) {
+        Some(e) => {
+            assert_eq!(e.heading.stars, 3);
+            assert_eq!(e.heading.title, "some title");
+            assert_eq!(e.heading.keyword, "");
+            assert_eq!(e.content, "this is some content\nand a bit more");
+        },
+        None => assert_eq!(true, false)
+    }
+}
+
+// #[test]
+// fn test_document_simple0() {
+//     let test_doc = "*** some entry
+// and some content
+// and some more
+// ** and another section
+// with its own content";
+//     match reorg::read_document(test_doc) {
+//         Some(d) => {
+//             assert_eq!(d.entry[0].title, "some entry");
+//             assert_eq!(d.entry[0].stars, 3);
+//             assert_eq!(d.entry[1].title, "and another section");
+//             assert_eq!(d.entry[1].stars, 2);
+//         },
+//         None => {
+//             assert_eq!(true, false);
+//         }
+//     }
+// }
