@@ -60,22 +60,22 @@ and a bit more";
     }
 }
 
-// #[test]
-// fn test_document_simple0() {
-//     let test_doc = "*** some entry
-// and some content
-// and some more
-// ** and another section
-// with its own content";
-//     match reorg::read_document(test_doc) {
-//         Some(d) => {
-//             assert_eq!(d.entry[0].title, "some entry");
-//             assert_eq!(d.entry[0].stars, 3);
-//             assert_eq!(d.entry[1].title, "and another section");
-//             assert_eq!(d.entry[1].stars, 2);
-//         },
-//         None => {
-//             assert_eq!(true, false);
-//         }
-//     }
-// }
+#[test]
+fn test_document_simple0() {
+    let test_doc = "*** some entry
+and some content
+and some more
+** and another section
+with its own content";
+    match reorg::read_document(test_doc) {
+        Some(d) => {
+            assert_eq!(d.entries[0].heading.title, "some entry");
+            assert_eq!(d.entries[0].heading.stars, 3);
+            assert_eq!(d.entries[1].heading.title, "and another section");
+            assert_eq!(d.entries[1].heading.stars, 2);
+        },
+        None => {
+            assert_eq!(true, false);
+        }
+    }
+}
