@@ -1,6 +1,6 @@
 extern crate regex;
 
-use regex::Regex;
+//use regex::{Regex, RegexBuilder};
 
 /// reorg library reads orgmode files!
 
@@ -24,7 +24,9 @@ pub struct Document {
 #[derive(Debug)]
 pub struct Entry {
     pub heading: Heading,
-    pub content: Vec<String>,
+
+    // content is a string containing the inner content of a given section
+    pub content: String,
 
     pub children: Vec<Entry>,
 }
@@ -34,77 +36,136 @@ pub struct Heading {
     pub stars: usize,
     pub keyword: String,
     pub title: String,
+
+    // not implemented
     // tags: vec!<String>,
     // pub priority: String,
 }
 
-/// `read_heading_simple` reads a org entry only considering the amount of stars,
-/// keyword and title.
-pub fn build_heading(_from: String) -> Heading {
-    let re = Regex::new(r"(?m)(?P<stars>\*+\s)?(?P<keyword>(TODO|DONE)\s)?(?P<title>.+)$").unwrap();
+pub fn read_heading0(_: &str) -> Option<Heading> {
+    Some(Heading {
+        stars: 1,
+        title: "valid title".to_string(),
+        keyword: "".to_string(),
+    })
+}
 
-    let capture = match re.captures(&_from) {
-        None => panic!("Error capturing heading from string"),
-        Some(e) => e,
-    };
+// returns number of stars from beginning of 1st line.
+fn read_stars(heading: &str) -> usize {
+    let mut stars:usize = 0;
+    for c in heading.to_string().chars() {
+        if c == '*' {
+            stars += 1;
+        } else {
+            break;
+        }
+    }
 
-    let stars = (&capture["stars"]).trim().len();
-    let title = String::from(&capture["title"]);
-    let keyword = match capture.name("keyword") {
-        None => "".to_string(),
-        Some(k) => k.as_str().trim().to_string(),
-    };
+    stars
+}
 
-    Heading {
+// reads a title: everything after stars and 1st whitespace. input is considered
+// sane for now.
+fn read_title(heading: &str) -> &str {
+    let start = heading.find("* ").unwrap();
+
+    return &heading[start+2..]
+}
+
+pub fn read_heading(heading: &str) -> Option<Heading> {
+    let stars = read_stars(heading);
+    let title = read_title(heading);
+
+    Some(Heading{
         stars,
-        title,
-        keyword,
-    }
+        title: title.to_string(),
+        keyword: "".to_string(),
+    })
 }
 
-pub fn build_entry(_from: String) -> Entry {
-    let lines: Vec<&str> = _from.split("\n").collect();
+// /// `read_heading_simple` reads a org entry only considering the amount of stars,
+// /// keyword and title.
+// pub fn build_heading(head: String) -> Option<Heading> {
+//     // FIX: super ugly hack
+//     if head.len() == 2 {
+//         return None
+//     }
+//     let re = Regex::new(r"(?P<stars>\*+\s)?(?P<keyword>(TODO|DONE)\s)?(?P<title>.+)").unwrap();
 
-    let heading = build_heading(lines[0].to_string());
-    let mut content = Vec::new();
+//     let capture = re.captures(&head)?;
 
-    let mut i = lines.iter();
-    i.next(); // skip title line
+//     let stars = (&capture["stars"]).trim().len();
+//     let title = String::from(&capture["title"]);
+//     let keyword = match capture.name("keyword") {
+//         None => "".to_string(),
+//         Some(k) => k.as_str().trim().to_string(),
+//     };
 
-    for line in i {
-        content.push(line.to_string());
-    };
+//     Some(Heading {
+//         stars,
+//         title,
+//         keyword,
+//     })
+// }
 
-    Entry {
-        heading,
-        content,
+// pub fn build_entry(_from: String) -> Option<Entry> {
+//     let re = Regex::new(r"^\*+\s(.+)$").unwrap();
+//     let lines: Vec<&str> = _from.split("\n").collect();
 
-        children: Vec::new(),
-    }
-}
+//     let capture = re.captures(&_from)?;
+//     let title = &capture["title"];
+//     println!("title: {}", title);
+//     let heading = build_heading(String::from(title))?;
+//     let mut content = Vec::new();
 
-pub fn build_document(filecontents: String) -> Document {
-    // this is what i have to do
+//     let mut i = lines.iter();
+//     i.next(); // skip title line
 
-    // 1. tokenize this file into level 1 headings (1 star)
-    // 2. to do so, I will split by "^* "
-    // 3. this will return a list of blocks to add, with their ** or other levels
-    //    in content.
-    // 4. to go into the document, I tokenize, the content of this entry, on "^** "
-    //    and add those items, for each item, i tokenize for 1 star-level more... etc.
+//     for line in i {
+//         content.push(line.to_string());
+//     };
 
-    // this implementation is not recursive, only for 1-star levels (top level)
+//     Some(Entry {
+//         heading,
+//         content,
 
-    let re = regex::Regex::new(r"(^\*\s.*)").unwrap();
-    let sections = re.captures_iter(&filecontents);
-    let mut entries: Vec<Entry> = Vec::new();
+//         children: Vec::new(),
+//     })
+// }
 
-    for section in sections {
-        println!("section {}\n", section[0].to_string());
-        entries.push(build_entry(section[0].to_string()));
-    }
+// pub fn build_document(contents: String, level: usize) -> Option<Document> {
+//     // this is what i have to do
 
-    Document{
-        entries,
-    }
-}
+//     // 1. tokenize this file into level 1 headings (1 star)
+//     // 2. to do so, I will split by "^* "
+//     // 3. this will return a list of blocks to add, with their ** or other levels
+//     //    in content.
+//     // 4. to go into the document, I tokenize, the content of this entry, on "^** "
+//     //    and add those items, for each item, i tokenize for 1 star-level more... etc.
+
+//     // this implementation is not recursive, only for 1-star levels (top level)
+
+//     let mut full_section = r"\*".repeat(level).to_owned();
+//     full_section.push_str(r"\s");
+//     let mut regex = "^".to_owned();
+//     regex.push_str(&full_section);
+//     let re = RegexBuilder::new(&regex).multi_line(true).build().unwrap();
+//     let sections = re.split(&contents);
+//     let mut entries: Vec<Entry> = Vec::new();
+
+//     for section in sections {
+//         let mut fixed = "*".repeat(level).to_string();
+//         fixed.push_str(" ");
+//         fixed.push_str(section);
+
+//         println!("section: {}\n", fixed);
+//         match build_entry(fixed) {
+//             Some(e) => entries.push(e),
+//             None => continue, // but this is the prologue of the section. will come back later
+//         }
+//     }
+
+//     Some(Document{
+//         entries,
+//     })
+// }
