@@ -75,7 +75,7 @@ with its own content";
             assert_eq!(d.sections[1].heading.stars, 2);
         },
         None => {
-            assert_eq!(true, false);
+            unreachable!();
         }
     }
 }

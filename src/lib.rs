@@ -7,7 +7,7 @@
 //!
 //! # Examples
 //!
-//! ```rust,no_run
+//! ```rust
 //! # use reorg;
 //! let org_doc = "* This is first item
 //! with some content
@@ -19,9 +19,9 @@
 //! assert_eq!(doc.sections[0].heading.stars, 1);
 //! assert_eq!(doc.sections[0].heading.title, "This is first item");
 //! assert_eq!(doc.sections[1].heading.stars, 2);
-//! assert_eq!(doc.sections[0].heading.title, "And we have another title");
+//! assert_eq!(doc.sections[1].heading.title, "And we have another title");
 //!
-//! assert_eq!(doc.sections[0].content, "with some content\nand a second line");
+//! assert_eq!(doc.sections[0].content, "with some content\nand a second line\n");
 //! assert_eq!(doc.sections[1].content, "also with some content");
 //! ```
 
@@ -31,7 +31,7 @@ use std::fs::File;
 use std::io::prelude::*;
 
 
-/// `Document` is a org representation of a text file. It is a collection of
+/// `Document` is an org representation of a text file. It is a collection of
 /// entries but it can be preceded by some content. The prologue is not yet
 /// implemented.
 #[derive(Debug)]
@@ -111,11 +111,11 @@ fn read_content(section: &str) -> &str {
 /// Reads a full `Section`. The `section` parameter is expected to only
 /// contain one `Section`.
 pub fn read_section(section: &str) -> Option<Section> {
-    let heading = read_heading(section);
+    let heading = read_heading(section)?;
     let content = read_content(section);
 
     Some(Section{
-        heading: heading.unwrap(),
+        heading: heading,
         content: content.to_string(),
         children: vec![],
     })
