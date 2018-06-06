@@ -135,6 +135,11 @@ fn read_stars(section: &str) -> usize {
     stars
 }
 
+/// This is a simple function to test the Github API.
+fn simple_addition(_: &str) -> bool {
+    true
+}
+
 /// Reads a title: everything after stars and 1st whitespace.
 fn read_title(section: &str) -> &str {
     let start = section.find("* ").unwrap();
