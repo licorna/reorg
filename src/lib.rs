@@ -149,6 +149,11 @@ fn read_title(section: &str) -> &str {
     }
 }
 
+/// This is another simple function to test
+fn simple_something(_: &str) -> bool {
+    false
+}
+
 /// Reads a heading, this is, a number of stars from the beginning, and
 /// a title.
 pub fn read_heading(section: &str) -> Option<Heading> {
