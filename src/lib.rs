@@ -41,7 +41,7 @@ pub struct Document {
 
 /// A `Section` is a `Heading` and some optional `Content`. A `Document` is
 /// composed of many `Section`s.
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 pub struct Section {
     pub heading: Heading,
 
@@ -53,7 +53,7 @@ pub struct Section {
 
 /// `Heading` is the title of each section, it includes a number of stars,
 /// which set the "priority" for this given `Section`.
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 pub struct Heading {
     pub stars: usize,
     pub keyword: String,
@@ -77,8 +77,10 @@ pub fn from_file(filename: &str) -> Option<Document> {
 /// Reads an org document in a string.
 pub fn read_document(document: &str) -> Option<Document> {
     let re = RegexBuilder::new(r"^\*+\s").multi_line(true).build().unwrap();
-    let mut sections:Vec<Section> = Vec::new();
     let mut section_offsets:Vec<usize> = Vec::new();
+
+    let mut root:Vec<Section> = Vec::new();
+    let mut insertion_stack:Vec<Section> = Vec::new();
 
     let mut iter = re.find_iter(document);
     iter.next();
@@ -89,22 +91,38 @@ pub fn read_document(document: &str) -> Option<Document> {
 
     let mut last = 0;
     for offs in section_offsets {
-        match read_section(&document[last..offs]) {
-            Some(e) => sections.push(e),
-            None => (),
-        };
+        if let Some(section) = read_section(&document[last..offs]) {
+            println!("Section {}", section.heading.title);
+
+            while let Some(mut top) = insertion_stack.pop() {
+                if section.heading.stars > top.heading.stars {
+                    top.children.push(section.clone());
+                    insertion_stack.push(top);
+                    insertion_stack.push(section.clone());
+
+                    println!("-> at some leaf");
+                    break;
+                }
+            }
+
+            if insertion_stack.len() == 0 {
+                println!("-> at the node");
+                insertion_stack.push(section.clone());
+                root.push(section);
+            }
+        }
         last = offs;
     }
 
     Some(Document{
-        sections,
+        sections: root,
     })
 }
 
-fn read_content(section: &str) -> &str {
+fn read_content(section: &str) -> String {
     match section.find('\n') {
-        Some(u) => &section[u+1..],
-        None => &""
+        Some(u) => section[u+1..].to_string(),
+        None => String::from("")
     }
 }
 
@@ -155,4 +173,99 @@ pub fn read_heading(section: &str) -> Option<Heading> {
         title: title.to_string(),
         keyword: "".to_string(),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn it_works() {
+        assert_eq!(2 + 2, 4);
+    }
+
+    #[test]
+    fn correct_number_of_sections() {
+        // all sections have level 1 asterisk
+        let simple_doc = "* This is a simple document
+with some content
+here and there
+* With a second section with
+some data
+* And a third and final one
+with some data";
+
+        let doc = read_document(simple_doc).unwrap();
+
+        assert_eq!(doc.sections.len(), 3);
+    }
+
+
+    #[test]
+    fn all_sections_are_read() {
+        let simple_doc = "* This is a simple document
+with some content
+here and there
+* With a second section with
+some data
+** And a third and final one
+with some data";
+
+        let doc = read_document(simple_doc).unwrap();
+
+        // assert_eq!(doc.sections.len(), 2);
+        assert_eq!(doc.sections[1].children.len(), 1)
+    }
+
+    #[test]
+    fn title_is_obtained_correctly () {
+        let simple_doc = "* This is a simple document
+with some content
+here and there
+* With a second section with
+some data
+** And a third and final one
+with some data";
+
+        let doc = read_document(simple_doc).unwrap();
+
+        assert_eq!(doc.sections[0].heading.title, "This is a simple document");
+        assert_eq!(doc.sections[1].heading.title, "With a second section with");
+        assert_eq!(doc.sections[1].children[0].heading.title, "And a third and final one");
+    }
+
+    #[test]
+    fn section_level_is_obtained_correctly () {
+        let simple_doc = "* This is a simple document
+with some content
+here and there
+* With a second section with
+some data
+** And a third and final one
+with some data";
+
+        let doc = read_document(simple_doc).unwrap();
+
+        assert_eq!(doc.sections[0].heading.stars, 1);
+        assert_eq!(doc.sections[1].heading.stars, 1);
+        assert_eq!(doc.sections[2].heading.stars, 2);
+    }
+
+    #[test]
+    fn subsection_is_obtained_correctly () {
+        let simple_doc = "* This is a simple document
+with some content
+here and there
+* With a second section with
+some data
+** And a third and final one
+with some data";
+
+        let doc = read_document(simple_doc).unwrap();
+
+        assert_eq!(doc.sections[0].heading.stars, 1);
+        assert_eq!(doc.sections[1].heading.stars, 1);
+        assert_eq!(doc.sections[1].children[0].heading.title, "And a third and final one");
+        assert_eq!(doc.sections[2].heading.stars, 2);
+    }
 }
