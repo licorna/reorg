@@ -30,25 +30,28 @@ use regex::RegexBuilder;
 use std::fs::File;
 use std::io::prelude::*;
 
+// use std::rc::Rc;
+use std::cell::RefCell;
+use std::rc::Rc;
 
 /// `Document` is an org representation of a text file. It is a collection of
 /// entries but it can be preceded by some content. The prologue is not yet
 /// implemented.
 #[derive(Debug)]
-pub struct Document {
-    pub sections: Vec<Section>,
+pub struct Document<'a> {
+    pub sections: RefCell<Vec<Rc<Section<'a>>>>,
 }
 
 /// A `Section` is a `Heading` and some optional `Content`. A `Document` is
 /// composed of many `Section`s.
 #[derive(Debug,Clone)]
-pub struct Section {
+pub struct Section<'a> {
     pub heading: Heading,
 
     // content is a string containing the inner content of a given section
     pub content: String,
 
-    pub children: Vec<Section>,
+    pub children: RefCell<Vec<Rc<Section<'a>>>>,
 }
 
 /// `Heading` is the title of each section, it includes a number of stars,
@@ -71,18 +74,46 @@ pub fn from_file(filename: &str) -> Option<Document> {
         Ok(_) => (),
     }
 
-    read_document(&doc_text)
+    read_document(doc_text)
 }
 
+// use std::collections::HashMap;
+
+/*
+
+This is how this thing is supposed to work
+
+1. We'll read a file with sections
+2. Each section starts with one or more asterisks
+3. Each section is a subsection, or child of another subsection, if it has more "asterisks"
+4. A section appearing after an existing section, but having less "asterisks" should belong to the
+   previous section with less asterisks than itself.
+
+To read the file from top to bottom:
+
+1. Document is the head of the tree
+2. One branch is a tree itself with a given level, depending on the amount of asterisks of parent Sections
+3. When traversing the file top to bottom, we'll find new sections that should be inserted in the tree
+4. But we also need to maintain a stack of recently visited sections in the tree -> This is, all the Sections from first
+   level up to this point
+5. If a new Section is found, to understand where it should belong in the tree, we consume from the stack until we find
+   a section with less "asterisks" -- a higher level node, and insert it there
+*/
+
+
 /// Reads an org document in a string.
-pub fn read_document(document: &str) -> Option<Document> {
+pub fn read_document<'a>(document: String) -> Option<Document<'a>> {
     let re = RegexBuilder::new(r"^\*+\s").multi_line(true).build().unwrap();
     let mut section_offsets:Vec<usize> = Vec::new();
 
-    let mut root:Vec<Section> = Vec::new();
-    let mut insertion_stack:Vec<Section> = Vec::new();
+    // let mut root:Vec<Rc<RefCell<Section>>> = Vec::new();
+    // let insertion_stack: Rc<RefCell<_>> = Rc::new(RefCell::new(Vec::new()));
+    // let mut insertion_stack:Vec<Rc<RefCell<Section>>> = Vec::new();
 
-    let mut iter = re.find_iter(document);
+    let root:RefCell<Vec<Rc<Section>>> = RefCell::new(Vec::new());
+    let insertion_stack:RefCell<Vec<Rc<Section>>> = RefCell::new(Vec::new());
+
+    let mut iter = re.find_iter(&document);
     iter.next();
     for i in iter {
         section_offsets.push(i.start());
@@ -91,24 +122,22 @@ pub fn read_document(document: &str) -> Option<Document> {
 
     let mut last = 0;
     for offs in section_offsets {
-        if let Some(section) = read_section(&document[last..offs]) {
+        if let Some(section) = read_section(String::from(&document[last..offs])) {
             println!("Section {}", section.heading.title);
 
-            while let Some(mut top) = insertion_stack.pop() {
-                if section.heading.stars > top.heading.stars {
-                    top.children.push(section.clone());
-                    insertion_stack.push(top);
-                    insertion_stack.push(section.clone());
-
-                    println!("-> at some leaf");
-                    break;
-                }
-            }
-
-            if insertion_stack.len() == 0 {
+            if insertion_stack.borrow().len() == 0 {
                 println!("-> at the node");
-                insertion_stack.push(section.clone());
-                root.push(section);
+                insertion_stack.borrow_mut().push(Rc::clone(&section));
+                root.borrow_mut().push(Rc::clone(&section));
+            } else {
+                while let Some(top) = insertion_stack.borrow_mut().pop() {
+                    if section.heading.stars > top.heading.stars {
+                        top.children.borrow_mut().push(Rc::clone(&section));
+                        insertion_stack.borrow_mut().push(top);
+                        insertion_stack.borrow_mut().push(Rc::clone(&section));
+                        break;
+                    }
+                }
             }
         }
         last = offs;
@@ -128,15 +157,15 @@ fn read_content(section: &str) -> String {
 
 /// Reads a full `Section`. The `section` parameter is expected to only
 /// contain one `Section`.
-pub fn read_section(section: &str) -> Option<Section> {
-    let heading = read_heading(section)?;
-    let content = read_content(section);
+pub fn read_section<'a>(section: String) -> Option<Rc<Section<'a>>> {
+    let heading = read_heading(&section)?;
+    let content = read_content(&section);
 
-    Some(Section{
+    Some(Rc::new(Section{
         heading: heading,
         content: content.to_string(),
-        children: vec![],
-    })
+        children: RefCell::new(Vec::new()),
+    }))
 }
 
 /// Returns number of stars from beginning of 1st line of section text.
@@ -187,85 +216,85 @@ mod tests {
     #[test]
     fn correct_number_of_sections() {
         // all sections have level 1 asterisk
-        let simple_doc = "* This is a simple document
+        let simple_doc = String::from("* This is a simple document
 with some content
 here and there
 * With a second section with
 some data
 * And a third and final one
-with some data";
+with some data");
 
         let doc = read_document(simple_doc).unwrap();
 
-        assert_eq!(doc.sections.len(), 3);
+        assert_eq!(doc.sections.borrow().len(), 3);
     }
 
 
     #[test]
     fn all_sections_are_read() {
-        let simple_doc = "* This is a simple document
+        let simple_doc = String::from("* This is a simple document
 with some content
 here and there
 * With a second section with
 some data
 ** And a third and final one
-with some data";
+with some data");
 
         let doc = read_document(simple_doc).unwrap();
 
         // assert_eq!(doc.sections.len(), 2);
-        assert_eq!(doc.sections[1].children.len(), 1)
+        assert_eq!(doc.sections.borrow()[1].children.borrow().len(), 1);
     }
 
     #[test]
     fn title_is_obtained_correctly () {
-        let simple_doc = "* This is a simple document
+        let simple_doc = String::from("* This is a simple document
 with some content
 here and there
 * With a second section with
 some data
 ** And a third and final one
-with some data";
+with some data");
 
         let doc = read_document(simple_doc).unwrap();
 
-        assert_eq!(doc.sections[0].heading.title, "This is a simple document");
-        assert_eq!(doc.sections[1].heading.title, "With a second section with");
-        assert_eq!(doc.sections[1].children[0].heading.title, "And a third and final one");
+        assert_eq!(doc.sections.borrow()[0].heading.title, "This is a simple document");
+        assert_eq!(doc.sections.borrow()[1].heading.title, "With a second section with");
+        assert_eq!(doc.sections.borrow()[1].children.borrow()[0].heading.title, "And a third and final one");
     }
 
     #[test]
     fn section_level_is_obtained_correctly () {
-        let simple_doc = "* This is a simple document
+        let simple_doc = String::from("* This is a simple document
 with some content
 here and there
 * With a second section with
 some data
 ** And a third and final one
-with some data";
+with some data");
 
         let doc = read_document(simple_doc).unwrap();
 
-        assert_eq!(doc.sections[0].heading.stars, 1);
-        assert_eq!(doc.sections[1].heading.stars, 1);
-        assert_eq!(doc.sections[2].heading.stars, 2);
+        assert_eq!(doc.sections.borrow()[0].heading.stars, 1);
+        assert_eq!(doc.sections.borrow()[1].heading.stars, 1);
+        assert_eq!(doc.sections.borrow()[2].heading.stars, 2);
     }
 
     #[test]
     fn subsection_is_obtained_correctly () {
-        let simple_doc = "* This is a simple document
+        let simple_doc = String::from("* This is a simple document
 with some content
 here and there
 * With a second section with
 some data
 ** And a third and final one
-with some data";
+with some data");
 
         let doc = read_document(simple_doc).unwrap();
 
-        assert_eq!(doc.sections[0].heading.stars, 1);
-        assert_eq!(doc.sections[1].heading.stars, 1);
-        assert_eq!(doc.sections[1].children[0].heading.title, "And a third and final one");
-        assert_eq!(doc.sections[2].heading.stars, 2);
+        assert_eq!(doc.sections.borrow()[0].heading.stars, 1);
+        assert_eq!(doc.sections.borrow()[1].heading.stars, 1);
+        assert_eq!(doc.sections.borrow()[1].children.borrow()[0].heading.title, "And a third and final one");
+        assert_eq!(doc.sections.borrow()[2].heading.stars, 2);
     }
 }
