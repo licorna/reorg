@@ -9,20 +9,20 @@
 //!
 //! ```rust
 //! # use reorg;
-//! let org_doc = "* This is first item
+//! let org_doc = String::from("* This is first item
 //! with some content
 //! and a second line
 //! ** And we have another title
-//! also with some content";
+//! also with some content");
 //! let doc = reorg::read_document(org_doc).unwrap();
 //!
-//! assert_eq!(doc.sections[0].heading.stars, 1);
-//! assert_eq!(doc.sections[0].heading.title, "This is first item");
-//! assert_eq!(doc.sections[1].heading.stars, 2);
-//! assert_eq!(doc.sections[1].heading.title, "And we have another title");
+//! assert_eq!(doc.sections.borrow()[0].heading.stars, 1);
+//! assert_eq!(doc.sections.borrow()[0].heading.title, "This is first item");
+//! assert_eq!(doc.sections.borrow()[0].children.borrow()[0].heading.stars, 2);
+//! assert_eq!(doc.sections.borrow()[0].children.borrow()[0].heading.title, "And we have another title");
 //!
-//! assert_eq!(doc.sections[0].content, "with some content\nand a second line\n");
-//! assert_eq!(doc.sections[1].content, "also with some content");
+//! assert_eq!(doc.sections.borrow()[0].content, "with some content\nand a second line\n");
+//! assert_eq!(doc.sections.borrow()[0].children.borrow()[0].content, "also with some content");
 //! ```
 
 extern crate regex;
@@ -30,7 +30,6 @@ use regex::RegexBuilder;
 use std::fs::File;
 use std::io::prelude::*;
 
-// use std::rc::Rc;
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -77,41 +76,14 @@ pub fn from_file(filename: &str) -> Option<Document> {
     read_document(doc_text)
 }
 
-// use std::collections::HashMap;
-
-/*
-
-This is how this thing is supposed to work
-
-1. We'll read a file with sections
-2. Each section starts with one or more asterisks
-3. Each section is a subsection, or child of another subsection, if it has more "asterisks"
-4. A section appearing after an existing section, but having less "asterisks" should belong to the
-   previous section with less asterisks than itself.
-
-To read the file from top to bottom:
-
-1. Document is the head of the tree
-2. One branch is a tree itself with a given level, depending on the amount of asterisks of parent Sections
-3. When traversing the file top to bottom, we'll find new sections that should be inserted in the tree
-4. But we also need to maintain a stack of recently visited sections in the tree -> This is, all the Sections from first
-   level up to this point
-5. If a new Section is found, to understand where it should belong in the tree, we consume from the stack until we find
-   a section with less "asterisks" -- a higher level node, and insert it there
-*/
-
-
 /// Reads an org document in a string.
 pub fn read_document<'a>(document: String) -> Option<Document<'a>> {
     let re = RegexBuilder::new(r"^\*+\s").multi_line(true).build().unwrap();
     let mut section_offsets:Vec<usize> = Vec::new();
 
-    // let mut root:Vec<Rc<RefCell<Section>>> = Vec::new();
-    // let insertion_stack: Rc<RefCell<_>> = Rc::new(RefCell::new(Vec::new()));
-    // let mut insertion_stack:Vec<Rc<RefCell<Section>>> = Vec::new();
-
     let root:RefCell<Vec<Rc<Section>>> = RefCell::new(Vec::new());
     let insertion_stack:RefCell<Vec<Rc<Section>>> = RefCell::new(Vec::new());
+    let mut istack = insertion_stack.borrow_mut();
 
     let mut iter = re.find_iter(&document);
     iter.next();
@@ -123,21 +95,18 @@ pub fn read_document<'a>(document: String) -> Option<Document<'a>> {
     let mut last = 0;
     for offs in section_offsets {
         if let Some(section) = read_section(String::from(&document[last..offs])) {
-            println!("Section {}", section.heading.title);
 
-            if insertion_stack.borrow().len() == 0 {
-                println!("-> at the node");
-                insertion_stack.borrow_mut().push(Rc::clone(&section));
-                root.borrow_mut().push(Rc::clone(&section));
-            } else {
-                while let Some(top) = insertion_stack.borrow_mut().pop() {
-                    if section.heading.stars > top.heading.stars {
-                        top.children.borrow_mut().push(Rc::clone(&section));
-                        insertion_stack.borrow_mut().push(top);
-                        insertion_stack.borrow_mut().push(Rc::clone(&section));
-                        break;
-                    }
+            while let Some(top) = istack.pop() {
+                if section.heading.stars > top.heading.stars {
+                    top.children.borrow_mut().push(Rc::clone(&section));
+                    istack.push(Rc::clone(&top));
+                    istack.push(Rc::clone(&section));
+                    break;
                 }
+            }
+            if istack.len() == 0 {
+                istack.push(Rc::clone(&section));
+                root.borrow_mut().push(section);
             }
         }
         last = offs;
@@ -214,6 +183,23 @@ mod tests {
     }
 
     #[test]
+    fn one_section() {
+        let text = String::from("* One section");
+        let doc = read_document(text).unwrap();
+
+        assert_eq!(doc.sections.borrow().len(), 1);
+    }
+
+    #[test]
+    fn two_section() {
+        let text = String::from("* One section
+* Two sections");
+        let doc = read_document(text).unwrap();
+
+        assert_eq!(doc.sections.borrow().len(), 2);
+    }
+
+    #[test]
     fn correct_number_of_sections() {
         // all sections have level 1 asterisk
         let simple_doc = String::from("* This is a simple document
@@ -242,7 +228,7 @@ with some data");
 
         let doc = read_document(simple_doc).unwrap();
 
-        // assert_eq!(doc.sections.len(), 2);
+        assert_eq!(doc.sections.borrow().len(), 2);
         assert_eq!(doc.sections.borrow()[1].children.borrow().len(), 1);
     }
 
@@ -277,7 +263,7 @@ with some data");
 
         assert_eq!(doc.sections.borrow()[0].heading.stars, 1);
         assert_eq!(doc.sections.borrow()[1].heading.stars, 1);
-        assert_eq!(doc.sections.borrow()[2].heading.stars, 2);
+        assert_eq!(doc.sections.borrow()[1].children.borrow()[0].heading.stars, 2);
     }
 
     #[test]
@@ -295,6 +281,6 @@ with some data");
         assert_eq!(doc.sections.borrow()[0].heading.stars, 1);
         assert_eq!(doc.sections.borrow()[1].heading.stars, 1);
         assert_eq!(doc.sections.borrow()[1].children.borrow()[0].heading.title, "And a third and final one");
-        assert_eq!(doc.sections.borrow()[2].heading.stars, 2);
+        assert_eq!(doc.sections.borrow()[1].children.borrow()[0].heading.stars, 2);
     }
 }
