@@ -1,8 +1,16 @@
 [package]
 name = "reorg"
+description = "Module to read org-mode files."
 version = "0.1.0"
 authors = ["Rodrigo Valin <licorna@gmail.com>"]
 edition = "2018"
+
+documentation = "https://docs.rs/reorg"
+homepage = "https://github.com/rodrigovalin/reorg"
+repository = "https://github.com/rodrigovalin/reorg.git"
+
+license = "MIT/Apache-2.0"
+readme = "README.md"
 
 [dependencies]
 regex = "1.0.0"
