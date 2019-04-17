@@ -15,7 +15,7 @@ with some content
 and a second line
 ** And we have another title
 also with some content");
-let doc = reorg::read_document(org_doc).unwrap();
+let doc = reorg::Document::from(org_doc).unwrap();
 
 assert_eq!(doc.sections.borrow()[0].heading.stars, 1);
 assert_eq!(doc.sections.borrow()[0].heading.title, "This is first item");
