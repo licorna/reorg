@@ -283,4 +283,16 @@ with some data");
         assert_eq!(doc.sections.borrow()[1].children.borrow()[0].heading.title, "And a third and final one");
         assert_eq!(doc.sections.borrow()[1].children.borrow()[0].heading.stars, 2);
     }
+
+    #[test]
+    fn read_org_from_file() {
+        match from_file("todo.org") {
+            Some(doc) => {
+                assert_eq!(doc.sections.borrow().len(), 6)
+            }
+            _ => {
+                panic!("Could not read file")
+            }
+        }
+    }
 }
