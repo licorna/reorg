@@ -33,13 +33,23 @@ use std::io::prelude::*;
 use std::cell::RefCell;
 use std::rc::Rc;
 
+type Sections<'a> = RefCell<Vec<Rc<Section<'a>>>>;
+
 /// `Document` is an org representation of a text file. It is a collection of
 /// entries but it can be preceded by some content. The prologue is not yet
 /// implemented.
 #[derive(Debug)]
 pub struct Document<'a> {
-    pub sections: RefCell<Vec<Rc<Section<'a>>>>,
+    pub sections: Sections<'a>,
 }
+
+// impl<'a> Sections<'a> {
+//     pub fn iter(&self) -> Iter<'_> {
+//         Iter {
+//             next: self.borrow().
+//         }
+//     }
+// }
 
 /// A `Section` is a `Heading` and some optional `Content`. A `Document` is
 /// composed of many `Section`s.
@@ -286,6 +296,20 @@ with some data");
         assert_eq!(doc.sections.borrow()[1].heading.stars, 1);
         assert_eq!(doc.sections.borrow()[1].children.borrow()[0].heading.title, "And a third and final one");
         assert_eq!(doc.sections.borrow()[1].children.borrow()[0].heading.stars, 2);
+    }
+
+    #[test]
+    fn sections_can_be_iterated() {
+        let simple_doc = String::from("* This is a simple document
+with some content
+here and there
+* With a second section with
+some data
+** And a third and final one
+with some data");
+        let doc = Document::from(simple_doc).unwrap();
+
+        assert_eq!((2, Some(2)), doc.sections.borrow().iter().size_hint());
     }
 
     #[test]
